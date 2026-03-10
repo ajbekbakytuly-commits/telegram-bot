@@ -1,0 +1,82 @@
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler, MessageHandler, filters
+
+# Вставь сюда токен своего бота
+import os
+TOKEN = os.getenv("BOT_TOKEN")
+
+# Кому пересылать ответы пользователей
+ADMIN_CHAT = "1030086901"
+
+# Состояния пользователей
+user_state = {}  # user_id -> состояние
+
+# /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("Написать aiba", callback_data="write_aiba")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(
+        "Это пример моего телеграм бота, услуги.",
+        reply_markup=reply_markup
+    )
+
+# Обработка нажатий кнопок
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user_id = query.from_user.id
+    await query.answer()
+
+    if query.data == "write_aiba":
+        # Удаляем предыдущее сообщение с кнопкой
+        await query.message.delete()
+
+        # Отправляем сообщение с ссылкой на Instagram
+        keyboard = [
+            [InlineKeyboardButton("Перейти в Instagram", url="https://www.instagram.com/aibaaa.b?igsh=dXUxaWdudHkwZm13")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.message.chat.send_message(
+            "Вы можете перейти по ссылке на Instagram:", reply_markup=reply_markup
+        )
+
+        # Отправляем вопрос пользователю
+        await query.message.chat.send_message("Хотите телеграм бота?")
+
+        # Сохраняем состояние, что теперь ждём ответ
+        user_state[user_id] = "awaiting_answer"
+
+# Обработка текстовых сообщений
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    text = update.message.text
+    user = update.message.from_user
+
+    if user_state.get(user_id) == "awaiting_answer":
+        # Пересылаем ответ админу
+        msg = f"Новая заявка!\n\nИмя: {user.first_name}\nUsername: @{user.username}\nСообщение:\n{text}"
+        await context.bot.send_message(chat_id=ADMIN_CHAT, text=msg)
+
+        # Отвечаем пользователю
+        await update.message.reply_text("Спасибо! Мы получили ваш ответ.")
+
+        # Сбрасываем состояние
+        user_state[user_id] = None
+    else:
+        # Любое другое сообщение
+        await update.message.reply_text("Пожалуйста, нажмите /start чтобы начать.")
+
+# Основная функция
+def main():
+    app = Application.builder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    print("Бот запущен...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
